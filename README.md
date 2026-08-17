@@ -84,7 +84,7 @@ The next version will evolve the current structured retrieval approach into a fu
 Planned improvements:
 
 - Vector database integration
-- OpenAI embeddings
+- Embedding-based semantic retrieval
 - Semantic search
 - Document chunking and retrieval
 - PDF knowledge-base support
