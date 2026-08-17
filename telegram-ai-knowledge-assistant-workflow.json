@@ -1,0 +1,379 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "ac4e4bc8-eca7-45ef-aebf-752c216c745a",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        112
+      ],
+      "webhookId": "YOUR_TELEGRAM_WEBHOOK_ID",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_TELEGRAM_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "29ca9738-cad0-4b86-b79b-12981480bf5e",
+              "name": "question",
+              "value": "={{ $json.message.text }}",
+              "type": "string"
+            },
+            {
+              "id": "e5a75f19-c623-41f9-adff-8746333ef102",
+              "name": "chat_id",
+              "value": "={{ $json.message.chat.id }}",
+              "type": "string"
+            },
+            {
+              "id": "38bcd6d3-b3c6-46af-867d-b210dfb555b2",
+              "name": "username",
+              "value": "={{ $json.message.from.username }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d6eee8c7-c4fc-42c0-a475-ecc0b4ba3793",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value":"YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "AI Knowledge Base",
+          "cachedResultUrl": "YOUR_SPREADSHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Knowledge_Base",
+          "cachedResultUrl": "YOUR_SPREADSHEET_URL"
+        },
+        "options": {}
+      },
+      "id": "cf952e73-2fba-47a6-b7bf-096c2f78ecb3",
+      "name": "Get row(s) in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_SHEETS_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the user's question from the Edit Fields node\nconst userQuestion = ($(\"Edit Fields\").first().json.question || \"\").toLowerCase();\n\n// All rows coming from Google Sheets\nconst rows = $input.all();\n\nlet bestMatch = null;\nlet highestScore = 0;\n\nfor (const row of rows) {\n  const question = (row.json.Question || \"\").toLowerCase();\n  const keywords = (row.json.Keywords || \"\").toLowerCase();\n\n  let score = 0;\n  const words = userQuestion.split(\" \");\n\n  // Count how many words from the question appear in the sheet's\n  // Question or Keywords columns\n  for (const word of words) {\n    if (question.includes(word)) score++;\n    if (keywords.includes(word)) score++;\n  }\n\n  if (score > highestScore) {\n    highestScore = score;\n    bestMatch = row.json;\n  }\n}\n\nif (!bestMatch) {\n  return [{\n    json: {\n      question: userQuestion,\n      matchedQuestion: \"\",\n      matchedAnswer: \"\",\n      score: 0\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    question: userQuestion,\n    matchedQuestion: bestMatch.Question,\n    matchedAnswer: bestMatch.Answer,\n    score: highestScore\n  }\n}];"
+      },
+      "id": "37b6e29b-2519-467b-aeb1-8b6b9bdf656c",
+      "name": "Code in JavaScript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Employee Question:\n{{ $json.question }}\n\nRetrieved Knowledge:\n{{ $json.matchedAnswer }}\n\nGenerate the final response.",
+        "options": {
+          "systemMessage": "You are an AI Knowledge Assistant for the company.\n\nYour job is to answer employee questions using ONLY the retrieved knowledge provided below.\n\nRules:\n- Never invent information.\n- Never answer using your own knowledge.\n- Only use the retrieved knowledge.\n- If no relevant knowledge is available, reply:\n\"I couldn't find this information in the knowledge base.\"\n- Keep your answer professional and concise.\n- Reply in the same language as the user's question."
+        }
+      },
+      "id": "f5cfc82d-326b-42c8-8b6c-c27408b0be86",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        896,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "b47b4cc3-27d2-4103-9d40-a47709342e55",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        912,
+        336
+      ],
+      "credentials": {
+        "openAiApi": {
+         "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "YOUR_OPENAI_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Edit Fields').item.json.chat_id }}"
+      },
+      "id": "50433f98-21bc-4d74-82cb-b1e5f4d458e1",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        1040,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "AI Knowledge Base",
+          "cachedResultUrl": "YOUR_SPREADSHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2093883474,
+          "mode": "list",
+          "cachedResultName": "Conversation_Log",
+          "cachedResultUrl": "YOUR_SPREADSHEET_URL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "User": "={{ $('Edit Fields').item.json.username }}",
+            "Question": "={{ $('Edit Fields').item.json.question }}",
+            "AI Response": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "User",
+              "displayName": "User",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Question",
+              "displayName": "Question",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "AI Response",
+              "displayName": "AI Response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "06fa6301-27c8-4ce5-a3c6-995c491ce20f",
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1248,
+        112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+         "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+         "name": "YOUR_GOOGLE_SHEETS_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $('AI Agent').item.json.output }}",
+        "additionalFields": {}
+      },
+      "id": "a7b7c601-b91d-443e-898e-16d2fcd27a27",
+      "name": "Send a text message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1472,
+        112
+      ],
+      "webhookId": "YOUR_TELEGRAM_WEBHOOK_ID",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "YOUR_TELEGRAM_CREDENTIAL"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "77805b17-681d-4cf6-90a9-4e2d3e8f1c36",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_N8N_INSTANCE_ID"
+  },
+  "nodeGroups": [],
+  "id": "xxeJzignYzOf9mHz",
+  "tags": []
+}
