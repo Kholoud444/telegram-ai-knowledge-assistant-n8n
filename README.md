@@ -10,6 +10,10 @@ This project demonstrates how AI and workflow automation can be combined to buil
 
 Instead of answering questions from unrestricted model knowledge, the assistant retrieves information from a predefined knowledge base and instructs the AI Agent to generate responses based only on the retrieved information.
 
+## Workflow Overview
+
+![n8n Telegram AI Knowledge Assistant Workflow](n8n-workflow.png)
+
 ## Features
 
 - Telegram chatbot interface
